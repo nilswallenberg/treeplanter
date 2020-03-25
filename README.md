@@ -1,0 +1,5 @@
+This s an ongoing PhD project that intends to find optimal positions for tree's with the intention to lower the mean radiant temperature (mean radiant flux or radiant load for a human being) with the use of the tree's shade. What it does is that it uses an heretic algorithm, hill climbing with random restarts to be exact, that searches for local maximums of difference in mean radiant temperature between sunlit and shaded positions.
+
+It is an ongoing PhD project and what I want to do for the course project is to optimize the code to hopefully make it run faster as well as improve commenting. The optimization could be to make the code nicer and neater, but also to improve the hill climbing algorithm or to also include an option to run the code with an Iterative Local Search algorithm that uses the local maximums from Hill Climbing to find new starting positions instead of new random positions for each iteration.
+
+One aim of the project is to make to code into a tool in the Urban Multi-scale Environmental Predictor (UMEP, https://umep-docs.readthedocs.io/en/latest/) that can be used by e.g other researchers or urban planners.

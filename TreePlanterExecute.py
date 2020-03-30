@@ -290,10 +290,10 @@ treedata = Treedata(ttype, height, trunk, dia, treey, treex)
 
 bld_orig = tree_input.buildings.copy()
 
-tree_input.sum_tmrt = tree_input.sum_tmrt * tree_input.buildings  # Remove all Tmrt values that are in shade or on top of buildings
+tree_input.tmrt_s = tree_input.tmrt_s * tree_input.buildings  # Remove all Tmrt values that are in shade or on top of buildings
 
-rows = tree_input.tmrt.shape[0]  # Y-extent of studied area
-cols = tree_input.tmrt.shape[1]  # X-extent for studied area
+rows = tree_input.tmrt_s.shape[0]  # Y-extent of studied area
+cols = tree_input.tmrt_s.shape[1]  # X-extent for studied area
 
 cdsm_ = np.zeros((rows, cols))  # Empty cdsm
 tdsm_ = np.zeros((rows, cols))  # Empty tdsm

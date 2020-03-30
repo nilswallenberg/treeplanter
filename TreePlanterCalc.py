@@ -4,6 +4,7 @@ import time
 import math
 #from scipy.ndimage import label
 import TreeGenerator.makevegdems
+from treeplanterclasses import Treerasters
 
 def treeplanter(treeinput,treesh_w,treesh_h1,sh_tmrt,treedata,treesh_sum):
 
@@ -25,15 +26,12 @@ def treeplanter(treeinput,treesh_w,treesh_h1,sh_tmrt,treedata,treesh_sum):
     rows = treeinput.tmrt_s.shape[0]    # Y-extent of studied area
     cols = treeinput.tmrt_s.shape[1]    # X-extent for studied area
 
-    treey = math.ceil(rows/2)  # Y-position of tree in empty setting. Y-position is in the middle of Y.
-    treex = math.ceil(cols/2)  # X-position of tree in empty setting. X-position is in the middle of X.
-
     cdsm_ = np.zeros((rows,cols))       # Empty cdsm
     tdsm_ = np.zeros((rows,cols))       # Empty tdsm
     buildings_empty = np.ones((rows, cols))  # Empty building raster
 
     # Create new tree
-    cdsm_, tdsm_ = TreeGenerator.makevegdems.vegunitsgeneration(buildings_empty,cdsm_,tdsm_,treedata.ttype,treedata.height,treedata.trunk,treedata.dia,treey,treex,cols,rows,treeinput.scale)
+    cdsm_, tdsm_ = TreeGenerator.makevegdems.vegunitsgeneration(buildings_empty,cdsm_,tdsm_,treedata.ttype,treedata.height,treedata.trunk,treedata.dia,treedata.treey,treedata.treex,cols,rows,treeinput.scale)
 
     # Find min and max rows and cols where there are shadows
     shy,shx = np.where(treesh_w > 0)
@@ -49,6 +47,9 @@ def treeplanter(treeinput,treesh_w,treesh_h1,sh_tmrt,treedata,treesh_sum):
     tsh_bool = (1-tsh_bool)
     cdsm_clip = cdsm_[shy_min:shy_max, shx_min:shx_max]
     tpy,tpx = np.where(cdsm_clip == treedata.height) # Position of tree in clipped shadow image
+
+    treerasters = Treerasters(treesh_w, treesh_sum, tsh_bool)
+    treerasters.treexy(tpy,tpx)
 
     # Creating boolean for where it is possible to plant a tree
     #bd_b = math.ceil(dia/2)
@@ -68,13 +69,11 @@ def treeplanter(treeinput,treesh_w,treesh_h1,sh_tmrt,treedata,treesh_sum):
         treeinput.buildings = treeinput.buildings + walls
         treeinput.buildings = 1 - treeinput.buildings
 
-    sh_bld = treeinput.buildings #* shadow  # Buildings and shadow, i.e. where not to plant a tree.
-
     # Calculating sum of Tmrt in shade for each possible position in the Tmrt matrix
     sum_tmrt_tsh = np.zeros((rows, cols))   # Empty matrix for sum of Tmrt in tree shadow
     sum_tmrt = np.zeros((rows, cols))  # Empty matrix for sum of Tmrt in sun under tree shadow
 
-    res_y, res_x = np.where(sh_bld == 1)
+    res_y, res_x = np.where(treeinput.buildings == 1)
 
     vec_ln = res_y.__len__()
     pos_ls = np.zeros((vec_ln, 6))
@@ -160,24 +159,29 @@ def treeplanter(treeinput,treesh_w,treesh_h1,sh_tmrt,treedata,treesh_sum):
     pos_ls = pos_ls[pos_bool,:]
     pos_ls[:, 0] = np.arange(pos_ls.shape[0])
 
-    sum_tmrt_tsh_copy = sum_tmrt_tsh.copy()
-    sum_tmrt_copy = sum_tmrt.copy()
+    treerasters.tmrt(sum_tmrt, sum_tmrt_tsh)
 
-    sun_vs_tsh = sum_tmrt_copy - sum_tmrt_tsh_copy
+    # sum_tmrt_tsh_copy = sum_tmrt_tsh.copy()
+    # sum_tmrt_copy = sum_tmrt.copy()
+    #
+    # sun_vs_tsh = sum_tmrt_copy - sum_tmrt_tsh_copy
 
-    # Finding courtyards and small separate areas
-    sun_vs_tsh_filtered = sp.ndimage.label(sun_vs_tsh)
+    # # Finding courtyards and small separate areas
+    # sun_vs_tsh_filtered = sp.ndimage.label(sun_vs_tsh)
+    #
+    # sun_sh_d = sun_vs_tsh_filtered[0]
+    # for i in range(1, sun_sh_d.max()+1):
+    #     if np.sum(sun_sh_d[sun_sh_d == i]) < 2000:
+    #         sun_vs_tsh[sun_sh_d == i] = 0
 
-    sun_sh_d = sun_vs_tsh_filtered[0]
-    for i in range(1, sun_sh_d.max()+1):
-        if np.sum(sun_sh_d[sun_sh_d == i]) < 2000:
-            sun_vs_tsh[sun_sh_d == i] = 0
+    #pos_m = np.zeros((rows,cols))
+    #for idx in range(pos_ls.shape[0]):
+    #    y = np.int_(pos_ls[idx, 2])
+    #    x = np.int_(pos_ls[idx, 1])
+    #    pos_m[y,x] = pos_ls[idx,0]
 
-    pos_m = np.zeros((rows,cols))
-    for idx in range(pos_ls.shape[0]):
-        y = np.int_(pos_ls[idx, 2])
-        x = np.int_(pos_ls[idx, 1])
-        pos_m[y,x] = pos_ls[idx,0]
+    treerasters.pos(pos_ls)
+    test = 0
 
     # sun_vs_tsh_orig = sum_tmrt_copy - sum_tmrt_tsh_copy
     #
@@ -216,4 +220,5 @@ def treeplanter(treeinput,treesh_w,treesh_h1,sh_tmrt,treedata,treesh_sum):
     #
     # sun_vs_tsh_orig = b_test
 
-    return pos_ls, sum_tmrt_tsh_copy, sum_tmrt_copy, sun_vs_tsh, treeshadow_clip, treesh_sum_clip, tsh_bool, tpy, tpx, pos_m
+    return treerasters
+    #return pos_ls, sum_tmrt_tsh_copy, sum_tmrt_copy, sun_vs_tsh, treeshadow_clip, treesh_sum_clip, tsh_bool, tpy, tpx, pos_m

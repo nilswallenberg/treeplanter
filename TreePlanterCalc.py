@@ -3,16 +3,27 @@ import scipy as sp
 import time
 import math
 #from scipy.ndimage import label
-import makevegdems
+import TreeGenerator.makevegdems
 
-def treeplanter(buildings,shadow,tmrth,tmrts,treesh_w,treesh_h1,sh_tmrt,ttype,height,trunk,dia,scale,treesh_sum):
+def treeplanter(treeinput,treesh_w,treesh_h1,sh_tmrt,treedata,treesh_sum):
 
-    tmrts = tmrts * buildings     # Remove all Tmrt values that are in shade or on top of buildings
+    # treeinput.buildings
+    # treeinput.shadow
+    # treeinput.tmrt_ts
+    # treeinput.tmrt_s
+    # treeinput.scale
 
-    bld_copy = buildings.copy()
+    # treedata.ttrype
+    # treedata.height
+    # treedata.trunk
+    # treedata.dia
 
-    rows = tmrts.shape[0]    # Y-extent of studied area
-    cols = tmrts.shape[1]    # X-extent for studied area
+    treeinput.tmrt_s = treeinput.tmrt_s * treeinput.buildings     # Remove all Tmrt values that are in shade or on top of buildings
+
+    bld_copy = treeinput.buildings.copy()
+
+    rows = treeinput.tmrt_s.shape[0]    # Y-extent of studied area
+    cols = treeinput.tmrt_s.shape[1]    # X-extent for studied area
 
     treey = math.ceil(rows/2)  # Y-position of tree in empty setting. Y-position is in the middle of Y.
     treex = math.ceil(cols/2)  # X-position of tree in empty setting. X-position is in the middle of X.
@@ -22,7 +33,7 @@ def treeplanter(buildings,shadow,tmrth,tmrts,treesh_w,treesh_h1,sh_tmrt,ttype,he
     buildings_empty = np.ones((rows, cols))  # Empty building raster
 
     # Create new tree
-    cdsm_, tdsm_ = makevegdems.vegunitsgeneration(buildings_empty,cdsm_,tdsm_,ttype,height,trunk,dia,treey,treex,cols,rows,scale)
+    cdsm_, tdsm_ = TreeGenerator.makevegdems.vegunitsgeneration(buildings_empty,cdsm_,tdsm_,treedata.ttype,treedata.height,treedata.trunk,treedata.dia,treey,treex,cols,rows,treeinput.scale)
 
     # Find min and max rows and cols where there are shadows
     shy,shx = np.where(treesh_w > 0)
@@ -37,11 +48,11 @@ def treeplanter(buildings,shadow,tmrth,tmrts,treesh_w,treesh_h1,sh_tmrt,ttype,he
     tsh_bool = treesh_h1[shy_min:shy_max, shx_min:shx_max]
     tsh_bool = (1-tsh_bool)
     cdsm_clip = cdsm_[shy_min:shy_max, shx_min:shx_max]
-    tpy,tpx = np.where(cdsm_clip == height) # Position of tree in clipped shadow image
+    tpy,tpx = np.where(cdsm_clip == treedata.height) # Position of tree in clipped shadow image
 
     # Creating boolean for where it is possible to plant a tree
     #bd_b = math.ceil(dia/2)
-    bd_b = np.int_(dia / 2)
+    bd_b = np.int_(treedata.dia / 2)
 
     # Buffer on building raster so that trees can't be planted next to walls. Can be planted one radius from walls.
     for i1 in range(bd_b):
@@ -49,15 +60,15 @@ def treeplanter(buildings,shadow,tmrth,tmrts,treesh_w,treesh_h1,sh_tmrt,ttype,he
         domain = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
         for i in range(1, cols - 1):
             for j in range(1, rows - 1):
-                dom = buildings[j - 1:j + 2, i - 1:i + 2]
+                dom = treeinput.buildings[j - 1:j + 2, i - 1:i + 2]
                 walls[j, i] = np.min(dom[np.where(domain == 1)])
 
-        walls = buildings - walls
-        buildings = 1 - buildings
-        buildings = buildings + walls
-        buildings = 1 - buildings
+        walls = treeinput.buildings - walls
+        treeinput.buildings = 1 - treeinput.buildings
+        treeinput.buildings = treeinput.buildings + walls
+        treeinput.buildings = 1 - treeinput.buildings
 
-    sh_bld = buildings #* shadow  # Buildings and shadow, i.e. where not to plant a tree.
+    sh_bld = treeinput.buildings #* shadow  # Buildings and shadow, i.e. where not to plant a tree.
 
     # Calculating sum of Tmrt in shade for each possible position in the Tmrt matrix
     sum_tmrt_tsh = np.zeros((rows, cols))   # Empty matrix for sum of Tmrt in tree shadow
@@ -126,14 +137,14 @@ def treeplanter(buildings,shadow,tmrth,tmrts,treesh_w,treesh_h1,sh_tmrt,ttype,he
 
         # Removing tmrt for each timestep depending on buildings and building shadows
         for iz in range(sh_tmrt.__len__()):
-            sh_temp = shadow[:, :, iz]  # Building shadows and tree shadows of existing buildings and trees
+            sh_temp = treeinput.shadow[:, :, iz]  # Building shadows and tree shadows of existing buildings and trees
             if np.sum(sh_temp) > 0:
                 #b_temp = buildings[:, :]    # Buildings
                 b_temp = bld_copy[:, :]  # Buildings
                 bool_temp = (b_temp[:, :] == 0) | (sh_temp[:, :] == 0)  # Boolean of buildings and shadows
                 ts_temp = tsh_bool_temp[:, :, iz] * bool_temp * sh_tmrt[iz, 0]   # How much tmrt to remove from tree shadow depending on buildings and existing shadows
                 w_temp = w_temp - ts_temp    # Removing tmrt
-                t_temp = t_temp + (w_temp > 0) * tmrth[:,:,iz]  # Sum tmrt sunlit
+                t_temp = t_temp + (w_temp > 0) * treeinput.tmrt_ts[:,:,iz]  # Sum tmrt sunlit
 
         sum_tmrt_tsh[res_y[i], res_x[i]] = np.sum(w_temp)
         sum_tmrt[res_y[i], res_x[i]] = np.sum(t_temp)

@@ -1,5 +1,5 @@
 # from importdata import importdata
-import sun_position as sp
+import SOLWEIG.sun_position as sp
 import numpy as np
 import datetime
 import calendar

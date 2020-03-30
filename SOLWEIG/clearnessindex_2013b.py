@@ -1,6 +1,6 @@
 author = 'xlinfr'
 
-import sun_distance
+import SOLWEIG.sun_distance
 import numpy as np
 import math
 
@@ -24,7 +24,7 @@ def clearnessindex_2013b(zen, jday, Ta, RH, radG, location, P):
         p = P*10.  # Convert from hPa to millibars
 
     Itoa = 1370.0  # Effective solar constant
-    D = sun_distance.sun_distance(jday)  # irradiance differences due to Sun-Earth distances
+    D = SOLWEIG.sun_distance.sun_distance(jday)  # irradiance differences due to Sun-Earth distances
     m = 35. * np.cos(zen) * ((1224. * (np.cos(zen)**2) + 1) ** (-1/2.))     # optical air mass at p=1013
     Trpg = 1.021-0.084*(m*(0.000949*p+0.051))**0.5  # Transmission coefficient for Rayliegh scattering and permanent gases
 

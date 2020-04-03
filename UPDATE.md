@@ -1,0 +1,4 @@
+An update and summary of the project so far. I have added some comments to by code to make it more understandable for myself as well as others that would potentially read it. This work will continue.
+I have also removed or disabled some functions that slowed down the model. Furthermore, I have created a number of classes containing e.g. input data such as rasters, lat, lon, etc., a class for tree data such as height, canopy diameter, trunk height, a class function that calculates regional groups for shadows which is useful especially if there are more than one timestep in the model. Some other code have been turned into functions to make everything easier to follow.
+
+As this is part of an ongoing PhD project this work will definitely continue and hopefully I can improve my code even more, possibly by implementing other optimization methods.

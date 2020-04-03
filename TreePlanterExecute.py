@@ -23,6 +23,8 @@ import TreePlanterCalc
 import TreePlanterOptInit
 from treeplanterclasses import Inputdata
 from treeplanterclasses import Treedata
+from treeplanterclasses import Regional_groups
+from SOLWEIG_1D import tmrt_1d_fun
 
 print(datetime.datetime.now().time())
 start_time = time.time()
@@ -32,7 +34,7 @@ start_time = time.time()
 infolder = 'C:/Users/xwanil/Desktop/Project_4/VegetationProject_Py3/inputdata/GustafAdolfSmall/'
 #infolder = 'C:/Users/xwanil/Desktop/Project_4/VegetationProject_Py3/inputdata/GustafAdolfNSmall/'
 #infolder = 'C:/Users/xwanil/Desktop/Project_4/VegetationProject_Py3/inputdata/GustafAdolfNorth/'
-outfolder = infolder + 'Out_v1/Test/'
+outfolder = infolder + 'Out_v1/Testing/'
 metfilepath = infolder + 'gothenburg_1983_173.txt'
 
 infolder2 = infolder + 'SOLWEIG_RUN/'
@@ -84,198 +86,7 @@ tree_input.dem = dataSet.ReadAsArray().astype(np.float)
 
 del dataSet
 
-# Misc
-UTC = 1
-met = np.loadtxt(metfilepath, skiprows=1, delimiter=' ')
-alt = 10
-
-onlyglobal = 1  # 1 if only global radiation exist
-landcovercode = 0  # according to landcovrclasses_2018a_orig.txt
-metfile = 1  # 1 if time series data is used
-useveg = 1  # 1 if vegetation should be considered
-ani = 1
-cyl = 1
-elvis = 0
-alt = 3.0
-
-sh = 1.  # 0 if shadowed by building
-vegsh = 0.  # 0 if shadowed by tree
-svf = 0.6
-if useveg == 1:
-    svfveg = 0.8
-    svfaveg = 0.9
-    trans = 0.03
-else:
-    svfveg = 1.
-    svfaveg = 1.
-    trans = 1.
-
-absK = 0.7
-absL = 0.98
-PA = 'STAND'
-sensorheight = 2.0
-
-# program start
-if PA == 'STAND':
-    Fside = 0.22
-    Fup = 0.06
-    height = 1.1
-    Fcyl = 0.28
-else:
-    Fside = 0.166666
-    Fup = 0.166667
-    height = 0.75
-    Fcyl = 0.20
-
-if metfile == 1:
-    met = np.loadtxt(metfilepath, skiprows=1, delimiter=' ')
-else:
-    met = np.zeros((1, 24)) - 999.
-    year = 2011
-    month = 6
-    day = 6
-    hour = 12
-    minu = 30
-
-    if (year % 4) == 0:
-        if (year % 100) == 0:
-            if (year % 400) == 0:
-                leapyear = 1
-            else:
-                leapyear = 0
-        else:
-            leapyear = 1
-    else:
-        leapyear = 0
-
-    if leapyear == 1:
-        dayspermonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    else:
-        dayspermonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-
-    doy = np.sum(dayspermonth[0:month - 1]) + day
-
-    Ta = 25.
-    RH = 50.
-    radG = 880.
-    radD = 150.
-    radI = 950.
-
-    met[0, 0] = year
-    met[0, 1] = doy
-    met[0, 2] = hour
-    met[0, 3] = minu
-    met[0, 11] = Ta
-    met[0, 10] = RH
-    met[0, 14] = radG
-    met[0, 21] = radD
-    met[0, 22] = radI
-
-location = {'longitude': tree_input.lon, 'latitude': tree_input.lat, 'altitude': alt}
-YYYY, altitude, azimuth, zen, jday, leafon, dectime, altmax = metload.Solweig_2015a_metdata_noload(met, location, UTC)
-
-svfalfa = np.arcsin(np.exp((np.log((1.-svf))/2.)))
-
-dectime_new = np.zeros((dectime.shape[0],1))
-dec_doy = int(dectime[0])
-for i in range(dectime.shape[0]):
-    dectime_new[i,0] = dectime[i] - dec_doy
-
-# Creating vectors from meteorological input
-DOY = met[:, 1]
-hours = met[:, 2]
-minu = met[:, 3]
-Ta = met[:, 11]
-RH = met[:, 10]
-radG = met[:, 14]
-radD = met[:, 21]
-radI = met[:, 22]
-P = met[:, 12]
-Ws = met[:, 9]
-Twater = []
-amaxvalue = tree_input.dsm.max() - tree_input.dsm.min()
-
-# load landcover file
-sitein = infolder + "landcoverclasses_2018a_orig.txt"
-f = open(sitein)
-lin = f.readlines()
-lc_class = np.zeros((lin.__len__() - 1, 6))
-for i in range(1, lin.__len__()):
-    lines = lin[i].split()
-    for j in np.arange(1, 7):
-        lc_class[i - 1, j - 1] = float(lines[j])
-
-# ground material parameters
-ground_pos = np.where(lc_class[:, 0 ] == landcovercode)
-albedo_g = lc_class[ground_pos, 1]
-eground = lc_class[ground_pos, 2]
-TgK = lc_class[ground_pos, 3]
-Tstart = lc_class[ground_pos, 4]
-TmaxLST = lc_class[ground_pos, 5]
-
-# wall material parameters
-wall_pos = np.where(lc_class[:, 0] == 99)
-albedo_b = lc_class[wall_pos, 1]
-ewall =  lc_class[wall_pos, 2]
-TgK_wall = lc_class[wall_pos, 3]
-Tstart_wall = lc_class[wall_pos, 4]
-TmaxLST_wall = lc_class[wall_pos, 5]
-
-# If metfile starts at night
-CI = 1.
-
-if ani == 1:
-    skyvaultalt = np.atleast_2d([])
-    skyvaultazi = np.atleast_2d([])
-    skyvaultaltint = [6, 18, 30, 42, 54, 66, 78]
-    skyvaultaziint = [12, 12, 15, 15, 20, 30, 60]
-    for j in range(7):
-        for k in range(1, int(360/skyvaultaziint[j]) + 1):
-            skyvaultalt = np.append(skyvaultalt, skyvaultaltint[j])
-
-    skyvaultalt = np.append(skyvaultalt, 90)
-
-    diffsh = np.zeros((145))
-    svfalfadeg = svfalfa / (np.pi / 180.)
-    for k in range(0, 145):
-        if skyvaultalt[k] > svfalfadeg:
-            diffsh[k] = 1
-else:
-    diffsh = []
-
-sh_tmrt = np.zeros((r_range.__len__(),2))
-i_c = 0
-for i in r_range:
-    #print(i)
-    # Daily water body temperature
-    if (dectime[i] - np.floor(dectime[i])) == 0 or (i == 0):
-        Twater = np.mean(Ta[jday[0] == np.floor(dectime[i])])
-
-    # Nocturnal cloudfraction from Offerle et al. 2003
-    if (dectime[i] - np.floor(dectime[i])) == 0:
-        daylines = np.where(np.floor(dectime) == dectime[i])
-        alt = altitude[0][daylines]
-        alt2 = np.where(alt > 1)
-        rise = alt2[0][0]
-        [_, CI, _, _, _] = clearnessindex_2013b(zen[0, i + rise + 1], jday[0, i + rise + 1],
-                                                Ta[i + rise + 1],
-                                                RH[i + rise + 1] / 100., radG[i + rise + 1], location,
-                                                P[i + rise + 1])
-        if (CI > 1) or (CI == np.inf):
-            CI = 1
-
-    Tmrt, Kdown, Kup, Ldown, Lup, Tg, ea, esky, I0, CI, Keast, Ksouth, Kwest, Knorth, Least, Lsouth, Lwest, \
-    Lnorth, KsideI, radIo, radDo, shadow1d = so.Solweig1D_2019a_calc(svf, svfveg, svfaveg, sh, vegsh,  albedo_b, absK, absL, ewall,
-                                                           Fside, Fup, Fcyl,
-                                                         altitude[0][i], azimuth[0][i], zen[0][i], jday[0][i],
-                                                         onlyglobal, location, dectime[i], altmax[0][i], cyl, elvis,
-                                                         Ta[i], RH[i], radG[i], radD[i], radI[i], P[i],
-                                                         Twater, TgK, Tstart, albedo_g, eground, TgK_wall, Tstart_wall,
-                                                         TmaxLST, TmaxLST_wall, svfalfa, CI, ani, diffsh, trans)
-
-    sh_tmrt[i_c,0] = Tmrt
-    sh_tmrt[i_c,1] = hours[i]
-    i_c += 1
+tmrt_1d, azimuth, altitude, amaxvalue = tmrt_1d_fun(metfilepath,tree_input.lon,tree_input.lat,tree_input.dsm,r_range)
 
 # Tree specs
 #ttype = 1       # Conifer
@@ -305,18 +116,15 @@ rowcol = rows*cols
 cdsm_, tdsm_ = makevegdems.vegunitsgeneration(buildings_empty, cdsm_, tdsm_, treedata.ttype, treedata.height, treedata.trunk, treedata.dia, treedata.treey, treedata.treex,
                                                cols, rows, tree_input.scale)
 
-# cdsm_1, tdsm_1 = makevegdems.vegunitsgeneration(buildings_empty, cdsm_, tdsm_, ttype, height, trunk, dia, 10, 84,
-# #                                                cols, rows, scale)
-
 treebush = np.zeros((rows, cols))  # Empty tree bush matrix
 
 treewalls = np.zeros((rows, cols))  # Empty tree walls matrix
 treewallsdir = np.zeros((rows, cols))  # Empty tree walls direction matrix
 
-treesh_w = np.zeros((rows, cols))
-treesh_h1 = np.zeros((rows, cols, r_range.__len__()))
-treesh_h3 = np.zeros((rows, cols, r_range.__len__()))
-treesh_sum = np.zeros((rows,cols))
+treesh_ts1 = np.zeros((rows, cols, r_range.__len__()))      # Shade for each timestep, shade = 0
+treesh_ts2 = np.zeros((rows, cols, r_range.__len__()))      # Shade for each timestep, shade = 1
+treesh_sum_sh = np.zeros((rows,cols))                       # Sum of shade for all timesteps
+treesh_sum_tmrt = np.zeros((rows, cols))                    # Sum of tmrt for all timesteps
 
 # Create shadow for new tree
 i_c = 0
@@ -326,107 +134,31 @@ for i in r_range:
                                                                                           amaxvalue, treebush, treewalls,
                                                                                           treewallsdir * np.pi / 180.)
 
-    treesh_h1[:, :, i_c] = vegsh
-    vegsh = (1 - vegsh)
-    treesh_sum = treesh_sum + vegsh * i
-    treesh_h3[:,:,i_c] = vegsh
-    treesh_w[:, :] = treesh_w + vegsh * sh_tmrt[i_c,0]
+    treesh_ts1[:, :, i_c] = vegsh
+    treesh_ts2[:, :, i_c] = (1 - vegsh)
+    treesh_sum_sh = treesh_sum_sh + treesh_ts2[:,:,i_c] * i
+    treesh_sum_tmrt[:, :] = treesh_sum_tmrt + treesh_ts2[:,:,i_c] * tmrt_1d[i_c,0]
     i_c += 1
 
-# t_out = 'C:/Users/xwanil/Desktop/Project_4/VegetationProject_Py3/inputdata/GustafAdolfSmall/Out_v1'
-# saveraster(dataSet, t_out + '/treeshadow_dem.tif', vegsh)
-# saveraster(dataSet, t_out + '/cdsm_dem.tif', cdsm_)
-
-t_r = range(0,r_range.__len__())
-t_l = t_r.__len__()
-
 ## Regional groups for tree shadows
-tree_u = np.unique(treesh_sum)                      # Unique values in summation matrix for tree shadows
-tree_max = np.max(tree_u)                           # Maximum value of unique values
-for i in range(1,tree_u.shape[0]):                  # Loop over all unique values
-    treesh_b = (treesh_sum == tree_u[i])            # Boolean shadow for each timestep i
-    tree_r = label(treesh_b)                        # Create regional groups
-    tree_r_u = np.unique(tree_r[0])                 # Find out how many regional groups, i.e. unique values
-    if np.sum(tree_r_u) > 1:                        # If more than there groups, i.e. 0, 1, 2, ... , continue
-        for j in range(2,tree_r_u.shape[0]):        # Loop over the unique values and give all but 1 new values
-            treesh_b2 = (tree_r[0] == tree_r_u[j])  # Boolean of shadow for each unique value
-            tree_max += 1                           # Add +1 to the maximum value of unique values, continues (creates new unique values)
-            treesh_sum[treesh_b2] = tree_max        # Add these to the building summation matrix
+shadow_rg = Regional_groups(r_range, treesh_sum_sh, treesh_ts2)
 
-tree_u_u = np.unique(treesh_sum)                    # New unique values of regional groups
-sh_vec_t = np.zeros((tree_u_u.shape[0],t_l+1))      # Empty array for storing which timesteps are found in each regional group
-sh_vec_t[:,0] = tree_u_u                            # Adding the unique regional groups to the first column
-for i in range(1,tree_u_u.shape[0]):                  # Loop over the unique values
-    treesh_b = (treesh_sum == tree_u_u[i])          # Boolean of each regional group
-    for j in t_r:                                   # Loop over each timestep
-        #if i != j:
-        treesh_b2 = (treesh_h3[:,:,j].copy() == 1)  # Boolean of shadow for each timestep
-        treesh_b3 = (treesh_b) & (treesh_b2)        # Find out where they overlap, i.e. which timesteps are found in each regional group
-        if np.sum(treesh_b3) > 0:                   # If they overlap, continue
-            sh_vec_t[i,1+j] = 1                     # Add 1 to timestep column
-
-## Regional groups for building shadows
-# bldsh_sum = np.zeros((rows,cols))                   # Empty matrix for summation of building shadows
-# for i in t_r:                                       # Loop for all timesteps
-#     sh_t = (1 - abs(shadow[:,:,i]))                 # Boolean shadow for each timestep i
-#     sh_t[sh_t < 0] = 0                              # Remove weird values
-#     bldsh_sum = bldsh_sum + sh_t * i                # Add shadow to summation
-#
-# bld_u = np.unique(bldsh_sum)                        # Unique values in summation matrix
-# bld_max = np.max(bld_u)                             # Maximum value of unique values
-# for i in range(1,bld_u.shape[0]):                   # Loop over all unique values
-#     bldsh_b = (bldsh_sum == bld_u[i])               # Boolean of shadow for each unique value
-#     bld_r = label(bldsh_b)                          # Create regional groups
-#     bld_r_u = np.unique(bld_r[0])                   # Find out how many regional groups, i.e. unique values
-#     if np.sum(bld_r_u) > 1:                         # If more than there groups, i.e. 0, 1, 2, ... , continue
-#         for j in range(2,bld_r_u.shape[0]):         # Loop over the unique values and give all but 1 new values
-#             bldsh_b2 = (bld_r[0] == bld_r_u[j])     # Boolean of shadow for each unique value
-#             bld_max += 1                            # Add +1 to the maximum value of unique values, continues (creates new unique values)
-#             bldsh_sum[bldsh_b2] = bld_max           # Add these to the building summation matrix
-#
-# bld_u_u = np.unique(bldsh_sum)                      # New unique values of regional groups
-# sh_vec_b = np.zeros((bld_u_u.shape[0],t_l+1))       # Empty array for storing which timesteps are found in each regional group
-# sh_vec_b[:,0] = bld_u_u                             # Adding the unique regional groups to the first column
-# for i in range(bld_u_u.shape[0]):                   # Loop over the unique values
-#     bldsh_b = (bldsh_sum == bld_u_u[i])             # Boolean of each regional group
-#     for j in t_r:                                   # Loop over each timestep
-#         #if i != j:
-#         bldsh_b2 = (shadow[:,:,j].copy() == 0)      # Boolean of shadow for each timestep
-#         bldsh_b3 = (bldsh_b) & (bldsh_b2)           # Find out where they overlap, i.e. which timesteps are found in each regional group
-#         if np.sum(bldsh_b3) > 0:                    # If they overlap, continue
-#             sh_vec_b[i,1+j] = 1                     # Add 1 to timestep column
-
-pos_ls, sum_tmrt_tsh_out, sum_tmrt_out, sun_vs_tsh, treeshadow_clip, treesh_sum_clip, tsh_bool, tpy, tpx, pos_m \
-    = TreePlanterCalc.treeplanter(tree_input, treesh_w, treesh_h1, sh_tmrt, treedata, treesh_sum)
-
-#print('--- %s seconds loading and preparing ---' % (time.time() - start_time))
+## Creating matrices with Tmrt for tree shadows at each possible position
+treerasters, positions = TreePlanterCalc.treeplanter(tree_input, treedata, treesh_sum_tmrt, treesh_ts1, tmrt_1d , treesh_sum_sh)
 
 trees = 2
-
-from scipy.signal import argrelextrema
-
-ind_y, ind_x = argrelextrema(sun_vs_tsh, np.greater)
-
-loc_max = np.zeros((ind_y.shape[0],1))
-for i in range(ind_y.shape[0]):
-    loc_max[i,0] = sun_vs_tsh[ind_y[i],ind_x[i]]
-
-sort_ind = np.argsort(-loc_max[:,0])
-ind_y_s = ind_y[sort_ind]
-ind_x_s = ind_x[sort_ind]
-
-ind_y_s = ind_y_s[0:trees]
-ind_x_s = ind_x_s[0:trees]
 
 k_s = 41 # Kernel size, k_s = 21 = 21x21
 #i_rand = 0 # Random
 i_rand = 1 # ILS with kernel search around local maximum
 
 n_trees = np.array([2,3,4])
-n_r = np.array([100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,3000,4000,5000,6000,7000,8000,9000,10000])
+#n_r = np.array([100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,3000,4000,5000,6000,7000,8000,9000,10000])
+#n_trees = np.array([3])
+n_r = np.array([100,200,300,400,500,600,700,800,900,1000])
 
 loop = n_r.shape[0]
-n_ir = np.array([0,1])
+n_ir = np.array([0,1])  # Random restart or ILS local maximum random restart
 #n_ir = np.array([1])
 for idz in n_ir:
     i_rand = idz
@@ -438,12 +170,10 @@ for idz in n_ir:
         for idx in range(loop):
             s_time = time.time()
             r_iters = n_r[idx]
-            #trees = n_trees[idx]
 
             # Running tree planter
-            t_y, t_x, unique_tmrt2, unique_tmrt2_counts, t_u_max = TreePlanterOptInit.treeoptinit(pos_ls, sum_tmrt_tsh_out, sum_tmrt_out, sun_vs_tsh, dia, treeshadow_clip,
-                                                      tpy, tpx, \
-                                                      sh_tmrt, tree_input.buildings, treesh_sum_clip, sh_vec_t, trees, r_iters, pos_m, k_s, i_rand)
+            t_y, t_x, unique_tmrt, unique_tmrt_max = TreePlanterOptInit.treeoptinit(treerasters, positions, treedata.dia, tree_input.buildings,
+                                                                                                  shadow_rg.timesteps, tmrt_1d, trees, r_iters, k_s, i_rand)
 
             treeshadow_tmrt = np.zeros((rows, cols, trees))
             cdsm_tmrt = np.zeros((rows, cols, trees))
@@ -467,15 +197,12 @@ for idz in n_ir:
                                                                                                   azimuth[0][j], altitude[0][j], tree_input.scale,
                                                                                                   amaxvalue, treebush, treewalls, treewallsdir * np.pi / 180.)
 
-                    treeshadow_tmrt[:,:,i] = vegsh
-
-                    treeshadow_tmrt[:,:,i] = 1-treeshadow_tmrt[:,:,i]
+                    treeshadow_tmrt[:,:,i] = 1-vegsh
                     treeshadow_new = treeshadow_new + treeshadow_tmrt[:,:,i]
 
             # Outputs
-            #directory = outfolder + str(int(YYYY[0, i])) + '/' + str(int(YYYY[0, i])) + '_' + str(int(DOY[i]))
             directory = outfolder
-            #print(directory)
+
             if not os.path.exists(directory):   # Create folder if not existing
                 os.makedirs(directory)
 
@@ -485,29 +212,31 @@ for idz in n_ir:
 
             t_dir = directory + t_p + '/' + h_r1 + '_' + h_r2
 
-            #print(t_dir)
             if not os.path.exists(t_dir):  # Create folder if not existing
                 os.makedirs(t_dir)
 
-            #saveraster(dataSet, t_dir + '/treeshadow_' + fm_str, treeshadow_new)
-            #saveraster(dataSet, t_dir + '/cdsm_' + fm_str, cdsm_new)
+            saveraster(tree_input.dataSet, t_dir + '/treeshadow_' + fm_str, treeshadow_new)
+            saveraster(tree_input.dataSet, t_dir + '/cdsm_' + fm_str, cdsm_new)
             #saveraster(dataSet, t_dir + '/tdsm_' + fm_str, tdsm_new)
             #saveraster(dataSet, t_dir + '/sun_vs_tsh_' + fm_str, sun_vs_tsh)
             #saveraster(dataSet, t_dir + '/sum_tmrt.tif', sum_tmrt)
             #saveraster(dataSet, t_dir + '/sum_tmrt_sun_' + fm_str, sum_tmrt_s)
             #saveraster(dataSet, t_dir + '/sum_tmrt_sh_' + fm_str, sum_tmrt_tsh)
 
-            if t_u_max[0].__len__() <= 1:
-                print(unique_tmrt2[t_u_max[0][0],:])
+            if unique_tmrt_max[0].__len__() <= 1:
+                print(unique_tmrt[unique_tmrt_max[0][0],:])
             else:
-                for ix in range(t_u_max[0].__len__()):
-                    print(unique_tmrt2[t_u_max[0][ix],:])
+                for ix in range(unique_tmrt_max[0].__len__()):
+                    print(unique_tmrt[unique_tmrt_max[0][ix],:])
 
-            t_max[0,idx] = unique_tmrt2[t_u_max[0][0],trees]
+            t_max[0,idx] = unique_tmrt[unique_tmrt_max[0][0],trees]
             r_time[0,idx] = time.time() - s_time
 
-            print('--- ' + str(time.time() - s_time) + ' seconds to finish ' + str(
-                r_iters) + ' randomization runs with ' + str(trees) + ' trees ---')
+            print(t_y)
+            print(t_x)
+
+            #print('--- ' + str(time.time() - s_time) + ' seconds to finish ' + str(
+            #    r_iters) + ' randomization runs with ' + str(trees) + ' trees ---')
 
         # Figure
         plt.scatter(n_r, t_max)
@@ -529,15 +258,5 @@ for idz in n_ir:
         np.savetxt(txt_dir, t_out, fmt='%1.2f', header=t_head)
 
 print('--- ' + str(time.time() - start_time) + ' seconds to finish ---')
-
-#print('--- ' + str(time.time() - start_time) + ' seconds to finish ' + str(loop) + ' loops of ' + str(r_iters) + ' randomization runs with ' + str(trees) + ' trees ---')
-
-#print('y positions are = ' + str(t_y) + ' and x positions are = ' + str(t_x))
-#print('x position of tree 1 is = ' + str(pos_ls[np.int_(unique_tmrt2[t_u_max[0],0][0]),1]))
-#print('y position of tree 1 is = ' + str(pos_ls[np.int_(unique_tmrt2[t_u_max[0],0][0]),2]))
-#print('x position of tree 2 is = ' + str(pos_ls[np.int_(unique_tmrt2[t_u_max[0],1][0]),1]))
-#print('y position of tree 2 is = ' + str(pos_ls[np.int_(unique_tmrt2[t_u_max[0],1][0]),2]))
-#print('Number of times trees end up in warmest position are = ' + str(unique_tmrt2_counts[t_u_max[0]][0]))
-#print('Max unique count = ' + str(np.max(unique_tmrt2_counts)))
 
 print(datetime.datetime.now().time())

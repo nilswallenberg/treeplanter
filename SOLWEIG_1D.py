@@ -3,7 +3,7 @@ from SOLWEIG.clearnessindex_2013b import clearnessindex_2013b
 import SOLWEIG.Solweig_v2015_metdata_noload as metload
 import SOLWEIG.Solweig1D_2019a_calc as so
 
-def tmrt_1d_fun(metfilepath,lon,lat,dsm,r_range):
+def tmrt_1d_fun(metfilepath,tau,lon,lat,dsm,r_range):
     # Misc
     UTC = 1
     met = np.loadtxt(metfilepath, skiprows=1, delimiter=' ')
@@ -24,7 +24,7 @@ def tmrt_1d_fun(metfilepath,lon,lat,dsm,r_range):
     if useveg == 1:
         svfveg = 0.8
         svfaveg = 0.9
-        trans = 0.03
+        trans = tau
     else:
         svfveg = 1.
         svfaveg = 1.

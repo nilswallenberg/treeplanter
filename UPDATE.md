@@ -1,4 +1,6 @@
 An update and summary of the project so far. I have added some comments to by code to make it more understandable for myself as well as others that would potentially read it. This work will continue.
 I have also removed or disabled some functions that slowed down the model. Furthermore, I have created a number of classes containing e.g. input data such as rasters, lat, lon, etc., a class for tree data such as height, canopy diameter, trunk height, a class function that calculates regional groups for shadows which is useful especially if there are more than one timestep in the model. Some other code have been turned into functions to make everything easier to follow.
 
+There is also an option in the model to run either with random restarts and Hill Climbing, or with Iterative Local Search and random restart that uses a kernel to look for a new random position within the kernel around the local maximum found by the previous iteration. Using the Iterative Local Search and kernel speeds up the code, but the biggest difference in speed actually came from removing or disabling redundant functions. Looking further into the Iterative Local Search algorithm is definitely of interest though.
+
 As this is part of an ongoing PhD project this work will definitely continue and hopefully I can improve my code even more, possibly by implementing other optimization methods.

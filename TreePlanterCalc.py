@@ -8,7 +8,7 @@ def treeplanter(treeinput,treedata,treesh_w,treesh_h1,tmrt_1d,treesh_sum):
 
     treeinput.tmrt_s = treeinput.tmrt_s * treeinput.buildings     # Remove all Tmrt values that are in shade or on top of buildings
 
-    #bld_copy = treeinput.buildings.copy()
+    bld_copy = treeinput.buildings.copy()
 
     rows = treeinput.tmrt_s.shape[0]    # Y-extent of studied area
     cols = treeinput.tmrt_s.shape[1]    # X-extent for studied area
@@ -17,13 +17,23 @@ def treeplanter(treeinput,treedata,treesh_w,treesh_h1,tmrt_1d,treesh_sum):
     tdsm_ = np.zeros((rows,cols))       # Empty tdsm
     buildings_empty = np.ones((rows, cols))  # Empty building raster
 
+    # Calculate buffer to remove relaxation zone. Relaxation zone = r_zone percentage of rows and cols
+    r_zone = 0.05   # Relaxation zone in percentage
+    buffer = np.ones((rows, cols))  # Empty vector of ones
+    rowb = np.around(rows*r_zone)   # r_zone percentage of padded rows
+    colb = np.around(cols*r_zone)   # r_zone percentage of padded cols
+    buffer[0:np.int_(rowb),:] = 0       # Setting buffer to 0
+    buffer[np.int_(rows-rowb):,:] = 0   # Setting buffer to 0
+    buffer[:,0:np.int_(colb)] = 0       # Setting buffer to 0
+    buffer[:,np.int_(cols-colb):] = 0   # Setting buffer to 0
+
     # Create new tree
     cdsm_, tdsm_ = TreeGenerator.makevegdems.vegunitsgeneration(buildings_empty,cdsm_,tdsm_,treedata.ttype,treedata.height,treedata.trunk,treedata.dia,treedata.treey,treedata.treex,cols,rows,treeinput.scale)
 
     treerasters = Treerasters(treesh_w, treesh_sum, treesh_h1, cdsm_, treedata.height)
 
     # Creating boolean for where it is possible to plant a tree
-    bd_b = np.int_(treedata.dia / 2)
+    bd_b = np.int_(np.ceil(treedata.dia / 2))
 
     # Buffer on building raster so that trees can't be planted next to walls. Can be planted one radius from walls.
     for i1 in range(bd_b):
@@ -31,99 +41,58 @@ def treeplanter(treeinput,treedata,treesh_w,treesh_h1,tmrt_1d,treesh_sum):
         domain = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
         for i in range(1, cols - 1):
             for j in range(1, rows - 1):
-                dom = treeinput.buildings[j - 1:j + 2, i - 1:i + 2]
+                dom = bld_copy[j - 1:j + 2, i - 1:i + 2]
                 walls[j, i] = np.min(dom[np.where(domain == 1)])
 
-        walls = treeinput.buildings - walls
-        treeinput.buildings = 1 - treeinput.buildings
-        treeinput.buildings = treeinput.buildings + walls
-        treeinput.buildings = 1 - treeinput.buildings
+        walls = bld_copy - walls
+        bld_copy = 1 - bld_copy
+        bld_copy = bld_copy + walls
+        bld_copy = 1 - bld_copy
+
+    if treeinput.aoi == 1:  # If area of interest, i.e. polygon to select a smaller area of full simulation, remove all other possible positions for trees
+        bld_copy = bld_copy * treeinput.selected_area
+
+    bld_copy = bld_copy * buffer    # Removing buffer from possible positions for trees
 
     # Calculating sum of Tmrt in shade for each possible position in the Tmrt matrix
     sum_tmrt_tsh = np.zeros((rows, cols))   # Empty matrix for sum of Tmrt in tree shadow
     sum_tmrt = np.zeros((rows, cols))  # Empty matrix for sum of Tmrt in sun under tree shadow
 
-    res_y, res_x = np.where(treeinput.buildings == 1)
+    res_y, res_x = np.where(bld_copy == 1)  # Coordinates for where it is possible to plant a tree (buildings, area of interest excluded)
 
-    vec_ln = res_y.__len__()
-    pos_ls = np.zeros((vec_ln, 6))
+    pos_ls = np.zeros((res_y.__len__(), 6))      # Length of vectors with y and x positions. Will have x and y positions, tmrt in shade and in sun and an id for each position
 
     index = 0
 
-    ts_rows = treerasters.treeshade.shape[0]
-    ts_cols = treerasters.treeshade.shape[1]
-
     # This loop pastes the tree shadow into all possible positions and calculates the sum of Tmrt under the shadow and
     # the sum Tmrt for the same area but sunlit
+    # Padding shadow, building and tmrt rasters with width and length of shadows
+    shadow_rasters = np.pad(treeinput.shadow[:,:,:], pad_width=((treerasters.tpy[0], treerasters.tpy[0]), (treerasters.tpx[0], treerasters.tpx[0]), (0,0)), mode='constant', constant_values=0)
+    buildings_raster = np.pad(treeinput.buildings[:,:], pad_width=((treerasters.tpy[0], treerasters.tpy[0]), (treerasters.tpx[0], treerasters.tpx[0])), mode='constant', constant_values=0)
+    tmrt_rasters = np.pad(treeinput.tmrt_ts[:,:,:], pad_width=((treerasters.tpy[0], treerasters.tpy[0]), (treerasters.tpx[0], treerasters.tpx[0]), (0,0)), mode='constant', constant_values=0)
+
+    rows_b, cols_b = buildings_raster.shape # Rows and cols of padded rasters
 
     for i in range(res_y.__len__()):
-        tpy1 = ts_rows - treerasters.tpy[0]
-        tpx1 = ts_cols - treerasters.tpx[0]
+        y1 = (res_y[i] + treerasters.tpy[0]) - treerasters.tpy[0]
+        y2 = (res_y[i] + treerasters.tpy[0]) + treerasters.rows_s - treerasters.tpy[0]
+        x1 = (res_x[i] + treerasters.tpx[0]) - treerasters.tpx[0]
+        x2 = (res_x[i] + treerasters.tpx[0]) + treerasters.cols_s - treerasters.tpx[0]
 
-        tpy2 = rows - res_y[i]  # idy = 90 -> 101 - 90 = 11
-        tpx2 = cols - res_x[i]
+        ts_temp1 = np.zeros((rows_b,cols_b))
+        ts_temp1[y1:y2,x1:x2] = treerasters.treeshade
 
-        tsh_pos = np.zeros((rows, cols))
-        tsh_bool_temp = np.zeros((rows, cols, tmrt_1d.__len__()))
+        # Klistra in skugga!! Fixa för TreePlanterTreeshade.py
+        # Gör samma som i TreePlanterOptimizer (regional groups, etc)
+        for j in range(tmrt_1d.__len__()):
+            ts_temp2 = np.zeros((rows_b, cols_b))
+            ts_temp2[y1:y2, x1:x2] = treerasters.treeshade_bool[:, :, j]
+            sum_tmrt[res_y[i],res_x[i]] += np.sum(ts_temp2 * buildings_raster * shadow_rasters[:,:,j] * tmrt_rasters[:,:,j])
+            sum_tmrt_tsh[res_y[i], res_x[i]] += np.sum(ts_temp2 * buildings_raster * shadow_rasters[:,:,j] * tmrt_1d[j,0])
 
-        rows_temp = np.zeros((1, 2))
-        rows_temp1 = np.zeros((1, 2))
-        cols_temp = np.zeros((1, 2))
-        cols_temp1 = np.zeros((1, 2))
-
-        # Calculating positions of how much of the shadow to copy depending on edges of the raster
-        # and then where to paste it into the study area
-        if (res_y[i] < treerasters.tpy[0]) & (tpy2 > tpy1):
-            rows_temp = [int(abs(res_y[i] - treerasters.tpy[0])), int(ts_rows)]
-            rows_temp1 = [0, int(res_y[i] + tpy1)]
-        elif (res_y[i] < treerasters.tpy[0]) & (tpy2 <= tpy1):
-            rows_temp = [int(abs(res_y[i] - treerasters.tpy[0])), int(ts_rows - (tpy1 - tpy2))]
-            rows_temp1 = [int(rows - tpy2), rows]
-        elif (res_y[i] >= treerasters.tpy[0]) & (tpy2 > tpy1):
-            rows_temp = [0, int(ts_rows)]
-            rows_temp1 = [int(res_y[i] - treerasters.tpy[0]), int(res_y[i] + tpy1)]
-        elif (res_y[i] >= treerasters.tpy[0]) & (tpy2 <= tpy1):
-            rows_temp = [0, int(ts_rows - (tpy1 - tpy2))]
-            rows_temp1 = [int(res_y[i] - treerasters.tpy[0]), rows]
-
-        if (res_x[i] < treerasters.tpx[0]) & (tpx2 > tpx1):
-            cols_temp = [int(abs(res_x[i] - treerasters.tpx[0])), int(ts_cols)]
-            cols_temp1 = [0, int(res_x[i] + tpx1)]
-        elif (res_x[i] < treerasters.tpx[0]) & (tpx2 <= tpx1):
-            cols_temp = [int(abs(res_x[i] - treerasters.tpx[0])), int(ts_cols - (tpx1 - tpx2))]
-            cols_temp1 = [int(cols - tpx2), cols]
-        elif (res_x[i] >= treerasters.tpx[0]) & (tpx2 > tpx1):
-            cols_temp = [0, int(ts_cols)]
-            cols_temp1 = [int(res_x[i] - treerasters.tpx[0]), int(res_x[i] + tpx1)]
-        elif (res_x[i] >= treerasters.tpx[0]) & (tpx2 <= tpx1):
-            cols_temp = [0, int(ts_cols - (tpx1 - tpx2))]
-            cols_temp1 = [int(res_x[i] - treerasters.tpx[0]), cols]
-
-        a = treerasters.treeshade[rows_temp[0]:rows_temp[1], cols_temp[0]:cols_temp[1]]
-        tsh_pos[rows_temp1[0]:rows_temp1[1], cols_temp1[0]:cols_temp1[1]] = a[:, :]
-
-        b = treerasters.treeshade_bool[rows_temp[0]:rows_temp[1], cols_temp[0]:cols_temp[1], :]
-        tsh_bool_temp[rows_temp1[0]:rows_temp1[1], cols_temp1[0]:cols_temp1[1], :] = b[:, :, :]
-
-        w_temp = tsh_pos[:, :].copy()
-
-        t_temp = np.zeros((rows,cols))
-
-        # Removing tmrt for each timestep depending on buildings and building shadows
-        for iz in range(tmrt_1d.__len__()):
-            sh_temp = treeinput.shadow[:, :, iz]  # Building shadows and tree shadows of existing buildings and trees
-            if np.sum(sh_temp) > 0:
-                #b_temp = bld_copy  # Buildings
-                bool_temp = (treeinput.buildings[:, :] == 0) | (sh_temp[:, :] == 0)  # Boolean of buildings and shadows
-                ts_temp = tsh_bool_temp[:, :, iz] * bool_temp * tmrt_1d[iz, 0]   # How much tmrt to remove from tree shadow depending on buildings and existing shadows
-                w_temp = w_temp - ts_temp    # Removing tmrt
-                t_temp = t_temp + (w_temp > 0) * treeinput.tmrt_ts[:,:,iz]  # Sum tmrt sunlit
-
-        sum_tmrt_tsh[res_y[i], res_x[i]] = np.sum(w_temp)   # Sum of Tmrt in tree shade - matrix
-        sum_tmrt[res_y[i], res_x[i]] = np.sum(t_temp)       # Sum of Tmrt in same area as tree shade but sunlit - matrix
         pos_ls[index, 1] = res_x[i]                         # X position of tree
         pos_ls[index, 2] = res_y[i]                         # Y position of tree
-        pos_ls[index, 3] = sum_tmrt_tsh[res_y[i], res_x[i]] # Sum of Tmrt in tree shad - vector
+        pos_ls[index, 3] = sum_tmrt_tsh[res_y[i], res_x[i]] # Sum of Tmrt in tree shade - vector
         pos_ls[index, 4] = sum_tmrt[res_y[i], res_x[i]]     # Sum of Tmrt in same area as tree shade but sunlit - vector
         pos_ls[index, 5] = 1
 
@@ -131,11 +100,11 @@ def treeplanter(treeinput,treedata,treesh_w,treesh_h1,tmrt_1d,treesh_sum):
 
     pos_bool = pos_ls[:,3] != 0
     pos_ls = pos_ls[pos_bool,:]
-    # Gives a unique value ranging from 0 to length of pos_ls.shape[0], for each position where it is possible to plant a tree
-    pos_ls[:, 0] = np.arange(pos_ls.shape[0])
+    # Gives a unique value ranging from 1 to length of pos_ls.shape[0]+1, for each position where it is possible to plant a tree
+    pos_ls[:, 0] = np.arange(1,pos_ls.shape[0]+1)
 
     # Adding sum_tmrt and sum_tmrt_tsh to the Treerasters class as well as calculating the difference between sunlit and shaded
-    treerasters.tmrt(sum_tmrt, sum_tmrt_tsh, 1)
+    treerasters.tmrt(sum_tmrt, sum_tmrt_tsh, 0)
 
     # Adding pos_ls and adding all unique values from pos_ls to their respective positions in a 2D matrix and returns a Positions class
     positions = Position(pos_ls,rows,cols)
